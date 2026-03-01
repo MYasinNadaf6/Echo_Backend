@@ -1,19 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const multer = require("multer");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + "-" + file.originalname);
-  }
-});
-
-const upload = multer({ storage });
+const { upload } = require("../config/cloudinary"); // 🔥 Import Cloudinary
 
 router.post(
   "/profile-image",
@@ -23,15 +12,17 @@ router.post(
     try {
       const user = await User.findById(req.user.id);
 
-      user.profileImage = req.file.filename;
+      // 🔥 Cloudinary returns the full live URL in req.file.path
+      user.profileImage = req.file.path;
       await user.save();
 
       res.json({
         message: "Image uploaded",
-        image: req.file.filename
+        image: req.file.path
       });
 
     } catch (err) {
+      console.error(err);
       res.status(500).json({ message: "Upload failed" });
     }
   }
