@@ -6,16 +6,18 @@ const { Server } = require("socket.io");
 const connectDB = require("./config/db");
 const Message = require("./models/Message");
 const jwt = require("jsonwebtoken");
-
+const path = require("path");
 dotenv.config();
 connectDB();
 
 const app = express();
 app.use(express.json());
 app.use(cors());
-
+app.use("/api/chat-upload", require("./routes/chatUploadRoutes"));
+app.use("/uploads", express.static("uploads"));
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
+app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use("/api/conversations", require("./routes/conversationRoutes"));
 app.use("/api/messages", require("./routes/messageRoutes"));
 app.use("/api/contacts", require("./routes/contactRoutes"));
@@ -47,68 +49,85 @@ io.use((socket, next) => {
     next(new Error("Authentication error"));
   }
 });
+app.get("/api/download/:fileUrl", (req, res) => {
+  const { fileUrl } = req.params;
+  const filePath = path.join(__dirname, "uploads", fileUrl);
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-  socket.on("registerUser", (userId) => {
-    onlineUsers[userId] = socket.id;
+  // Send the file with Content-Disposition header to guarantee download
+  res.download(filePath, (err) => {
+    if (err) {
+      console.error("Error downloading file:", err.message);
+      res.status(404).send({ message: "File not found" });
+    }
   });
+});
+io.on("connection", (socket) => {
 
+  console.log("User connected:", socket.userId);
 
-const User = require("./models/User");
-const Conversation = require("./models/Conversation");
+  // ✅ Auto register user from JWT
+  onlineUsers[socket.userId] = socket.id;
 
-socket.on("sendMessage", async (data) => {
-  const { senderId, receiverId, encryptedMessage } = data;
+  const User = require("./models/User");
+  const Conversation = require("./models/Conversation");
+
+  socket.on("sendMessage", async (data) => {
+  const {
+    senderId,
+    receiverId,
+    encryptedMessage,
+    messageType,
+    fileUrl,
+    fileName
+  } = data;
 
   try {
-    // 1️⃣ Validate sender exists
     const sender = await User.findById(senderId);
-    if (!sender) return;
-
-    // 2️⃣ Validate receiver exists
     const receiver = await User.findById(receiverId);
-    if (!receiver) return;
+    if (!sender || !receiver) return;
 
-    // 3️⃣ Validate mutual contact
-    if (!sender.contacts.includes(receiver._id)) {
-      console.log("Unauthorized message attempt");
-      return;
-    }
-
-    // 4️⃣ Validate conversation exists
     const conversation = await Conversation.findOne({
       participants: { $all: [senderId, receiverId] }
     });
 
     if (!conversation) return;
 
-    // 5️⃣ Save message
     const message = await Message.create({
       sender: senderId,
       receiver: receiverId,
-      encryptedMessage
+      encryptedMessage: encryptedMessage || "",
+      messageType: messageType || "text",
+      fileUrl: fileUrl || "",
+      fileName: fileName || ""
     });
 
-    // 6️⃣ Emit to receiver
+    // 🔥 update last message properly
+    await Conversation.findByIdAndUpdate(conversation._id, {
+      lastMessage:
+        messageType === "text"
+          ? encryptedMessage
+          : messageType === "image"
+          ? "📷 Image"
+          : "📎 File",
+      lastMessageTime: new Date()
+    });
+
     const receiverSocket = onlineUsers[receiverId];
+
     if (receiverSocket) {
       io.to(receiverSocket).emit("receiveMessage", message);
     }
 
   } catch (error) {
-    console.error("Secure message error:", error.message);
+    console.error("Message error:", error.message);
   }
 });
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
 
-    for (let userId in onlineUsers) {
-      if (onlineUsers[userId] === socket.id) {
-        delete onlineUsers[userId];
-      }
-    }
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.userId);
+    delete onlineUsers[socket.userId];
   });
+
 });
 
 const PORT = process.env.PORT || 5000;

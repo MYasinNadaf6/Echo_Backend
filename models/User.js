@@ -20,7 +20,15 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true
     },
+    profileImage: {
+  type: String},
 contacts: [
+  {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User"
+  }
+],
+blockedUsers: [
   {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User"

@@ -12,9 +12,23 @@ const messageSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
+    // 🔥 FIXED: We removed 'required: true' and added 'default: ""'
     encryptedMessage: {
       type: String,
-      required: true
+      default: "" 
+    },
+    messageType: {
+      type: String,
+      enum: ["text", "image", "file"],
+      default: "text"
+    },
+    fileUrl: {
+      type: String,
+      default: ""
+    },
+    fileName: {
+      type: String,
+      default: ""
     }
   },
   { timestamps: true }

@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Conversation = require("../models/Conversation");
 const crypto = require("crypto");
+const Message = require("../models/Message");
 
 exports.createOrGetConversation = async (req, res) => {
   const { receiverId } = req.body;
@@ -30,5 +31,44 @@ exports.createOrGetConversation = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+exports.deleteConversation = async (req, res) => {
+  try {
+    const currentUserId = req.user.id;
+    const otherUserId = req.params.userId;
+
+    // Delete conversation document
+    await Conversation.findOneAndDelete({
+      participants: { $all: [currentUserId, otherUserId] }
+    });
+
+    // Delete messages between users
+    await Message.deleteMany({
+      $or: [
+        { sender: currentUserId, receiver: otherUserId },
+        { sender: otherUserId, receiver: currentUserId }
+      ]
+    });
+
+    res.json({ message: "Chat deleted successfully" });
+
+  } catch (error) {
+    console.error("Delete chat error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+exports.getUserConversations = async (req, res) => {
+  try {
+    const conversations = await Conversation.find({
+      participants: req.user.id
+    })
+    .populate("participants", "name profileImage")
+    .sort({ lastMessageTime: -1 });
+
+    res.json(conversations);
+
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
   }
 };
