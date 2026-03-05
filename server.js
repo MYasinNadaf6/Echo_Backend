@@ -119,7 +119,8 @@ io.on("connection", (socket) => {
       if (receiverSocket) {
         io.to(receiverSocket).emit("receiveMessage", message);
       }
-
+ 
+      
       // ==========================================
       // 🔥 NEW: TRIGGER THE PUSH NOTIFICATION HERE
       // ==========================================
