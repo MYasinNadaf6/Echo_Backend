@@ -7,6 +7,8 @@ const connectDB = require("./config/db");
 const Message = require("./models/Message");
 const jwt = require("jsonwebtoken");
 const path = require("path");
+const sendPushNotification = require("./utils/pushNotification");
+const User = require("./models/User"); // You might need this to get the sender's name
 dotenv.config();
 connectDB();
 
@@ -71,57 +73,67 @@ io.on("connection", (socket) => {
   const User = require("./models/User");
   const Conversation = require("./models/Conversation");
 
-  socket.on("sendMessage", async (data) => {
-  const {
-    senderId,
-    receiverId,
-    encryptedMessage,
-    messageType,
-    fileUrl,
-    fileName
-  } = data;
+ socket.on("sendMessage", async (data) => {
+    const {
+      senderId,
+      receiverId,
+      encryptedMessage,
+      messageType,
+      fileUrl,
+      fileName
+    } = data;
 
-  try {
-    const sender = await User.findById(senderId);
-    const receiver = await User.findById(receiverId);
-    if (!sender || !receiver) return;
+    try {
+      const sender = await User.findById(senderId);
+      const receiver = await User.findById(receiverId);
+      if (!sender || !receiver) return;
 
-    const conversation = await Conversation.findOne({
-      participants: { $all: [senderId, receiverId] }
-    });
+      const conversation = await Conversation.findOne({
+        participants: { $all: [senderId, receiverId] }
+      });
 
-    if (!conversation) return;
+      if (!conversation) return;
 
-    const message = await Message.create({
-      sender: senderId,
-      receiver: receiverId,
-      encryptedMessage: encryptedMessage || "",
-      messageType: messageType || "text",
-      fileUrl: fileUrl || "",
-      fileName: fileName || ""
-    });
+      const message = await Message.create({
+        sender: senderId,
+        receiver: receiverId,
+        encryptedMessage: encryptedMessage || "",
+        messageType: messageType || "text",
+        fileUrl: fileUrl || "",
+        fileName: fileName || ""
+      });
 
-    // 🔥 update last message properly
-    await Conversation.findByIdAndUpdate(conversation._id, {
-      lastMessage:
-        messageType === "text"
-          ? encryptedMessage
-          : messageType === "image"
-          ? "📷 Image"
-          : "📎 File",
-      lastMessageTime: new Date()
-    });
+      // 🔥 update last message properly
+      await Conversation.findByIdAndUpdate(conversation._id, {
+        lastMessage:
+          messageType === "text"
+            ? encryptedMessage
+            : messageType === "image"
+            ? "📷 Image"
+            : "📎 File",
+        lastMessageTime: new Date()
+      });
 
-    const receiverSocket = onlineUsers[receiverId];
+      const receiverSocket = onlineUsers[receiverId];
 
-    if (receiverSocket) {
-      io.to(receiverSocket).emit("receiveMessage", message);
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("receiveMessage", message);
+      }
+
+      // ==========================================
+      // 🔥 NEW: TRIGGER THE PUSH NOTIFICATION HERE
+      // ==========================================
+      try {
+        const senderName = sender ? sender.name : "A Contact";
+        await sendPushNotification(receiverId, senderName);
+      } catch (err) {
+        console.error("Failed to trigger notification:", err);
+      }
+
+    } catch (error) {
+      console.error("Message error:", error.message);
     }
-
-  } catch (error) {
-    console.error("Message error:", error.message);
-  }
-});
+  });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.userId);
