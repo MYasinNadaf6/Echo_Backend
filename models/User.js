@@ -27,7 +27,11 @@ contacts: [
     type: mongoose.Schema.Types.ObjectId,
     ref: "User"
   }
-],
+],// Add this inside your UserSchema
+  fcmToken: {
+    type: String,
+    default: ""
+  },
 blockedUsers: [
   {
     type: mongoose.Schema.Types.ObjectId,

@@ -19,7 +19,18 @@ router.get("/me", authMiddleware, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
+// 🔥 NEW: Route to save the Firebase device token
+router.post("/save-token", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    user.fcmToken = req.body.token;
+    await user.save();
+    res.status(200).json({ message: "Token saved successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error saving token" });
+  }
+});
 // FIXED: Replaced 'protect' with 'authMiddleware'
 router.get("/blocked", authMiddleware, async (req, res) => {
   const user = await User.findById(req.user.id)
