@@ -1,19 +1,19 @@
 const admin = require("firebase-admin");
 require("dotenv").config();
 
-let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+try {
+  // 1. Read the entire JSON block from Render
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
-if (privateKey) {
-  // 🔥 This completely strips weird quotes and fixes Render's broken line breaks
-  privateKey = privateKey.replace(/\\n/g, '\n').replace(/"/g, '');
+  // 2. Initialize Firebase
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+  
+  console.log("✅ Firebase Admin Initialized Successfully!");
+
+} catch (error) {
+  console.error("❌ Firebase Initialization Error:", error.message);
 }
-
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: privateKey,
-  })
-});
 
 module.exports = admin;
