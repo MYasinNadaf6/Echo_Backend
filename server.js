@@ -23,6 +23,9 @@ app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use("/api/conversations", require("./routes/conversationRoutes"));
 app.use("/api/messages", require("./routes/messageRoutes"));
 app.use("/api/contacts", require("./routes/contactRoutes"));
+app.get("/", (req, res) => {
+  res.status(200).send("Echo Backend is awake and running!");
+});
 const server = http.createServer(app);
 
 const io = new Server(server, {
